@@ -172,13 +172,15 @@ pub const ResourceFile = struct {
     virtual_path: ?[]const u8 = null,
 
     pub fn get(self: ResourceFile, b: *std.Build) []const u8 {
-        return if (self.virtual_path) |virtual_path|
-            b.fmt(
-                "{s}@{s}",
-                .{ self.src_path.getPath(b), virtual_path },
-            )
-        else
-            self.src_path.getPath(b);
+        return b.fmt("{s}@{s}", .{
+            self.src_path.getPath(b),
+            self.virtual_path orelse switch (self.src_path) {
+                .src_path => |src| src.sub_path,
+                .generated => |gen| gen.sub_path,
+                .dependency => |dep| dep.sub_path,
+                .cwd_relative => |rel| rel,
+            },
+        });
     }
 };
 
@@ -250,14 +252,14 @@ pub fn emccStep(
     if (options.embed_paths) |embed_paths| {
         for (embed_paths) |path| {
             emcc.addArg("--embed-file");
-            emcc.addFileArg(path.src_path);
+            emcc.addArg(path.get(b));
         }
     }
 
     if (options.preload_paths) |preload_paths| {
         for (preload_paths) |path| {
             emcc.addArg("--preload-file");
-            emcc.addFileArg(path.src_path);
+            emcc.addArg(path.get(b));
         }
     }
 
